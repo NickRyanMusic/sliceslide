@@ -111,10 +111,10 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 const scene = new THREE.Scene();
-const frustum = 5;
-const asp = window.innerWidth / window.innerHeight;
-const camera = new THREE.OrthographicCamera(-frustum*asp, frustum*asp, frustum, -frustum, 0.1, 100);
-camera.position.set(0, 0, 10); camera.lookAt(0, 0, 0);
+const camZ = 10;
+const fov = 40;
+const camera = new THREE.PerspectiveCamera(fov, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0, 0, camZ); camera.lookAt(0, 0, 0);
 
 scene.add(new THREE.AmbientLight(0xaabbcc, 0.6));
 const d1 = new THREE.DirectionalLight(0xffeedd, 0.9); d1.position.set(3,4,5); scene.add(d1);
@@ -142,13 +142,24 @@ async function loadOBJ(url) {
   return geo;
 }
 
-// Screen coords → world coords
-function s2w(sx, sy) {
+// Screen coords → world coords at a given Z depth
+function s2w(sx, sy, z) {
+  z = z || 0;
+  const dist = camZ - z;
+  const vHeight = 2 * dist * Math.tan(THREE.MathUtils.degToRad(fov/2));
+  const vWidth = vHeight * (window.innerWidth / window.innerHeight);
   return new THREE.Vector3(
-    ((sx/window.innerWidth)*2-1) * frustum * asp,
-    (-(sy/window.innerHeight)*2+1) * frustum,
-    0
+    (sx / window.innerWidth - 0.5) * vWidth,
+    -(sy / window.innerHeight - 0.5) * vHeight,
+    z
   );
+}
+
+// World width of the sculpture at Z=0
+function sculptWorldWidth() {
+  const dist = camZ;
+  const vWidth = 2 * dist * Math.tan(THREE.MathUtils.degToRad(fov/2)) * (window.innerWidth / window.innerHeight);
+  return (sRect.w / window.innerWidth) * vWidth;
 }
 
 let sliceMesh = null;
@@ -159,8 +170,8 @@ function updateHome() {
 }
 
 loadOBJ('slice.obj').then(geo => {
-  // Scale OBJ to match sculpture width on screen
-  const worldW = (sRect.w / window.innerWidth) * 2 * frustum * asp;
+  // Scale OBJ to match sculpture width at Z=0
+  const worldW = sculptWorldWidth();
   geo.scale(worldW, worldW, worldW);
 
   sliceMesh = new THREE.Mesh(geo, sliceMat);
@@ -255,8 +266,7 @@ animate();
 window.addEventListener('resize', () => {
   resizeBg(); drawSculpture(phase!==PH.IDLE);
   renderer.setSize(window.innerWidth,window.innerHeight);
-  const a=window.innerWidth/window.innerHeight;
-  camera.left=-frustum*a;camera.right=frustum*a;camera.top=frustum;camera.bottom=-frustum;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   if(sliceMesh) updateHome();
 });
