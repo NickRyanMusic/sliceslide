@@ -445,7 +445,7 @@ function animate() {
     if (phase === PH.EMERGE) {
       const t=Math.min(phaseTime*espd,1), e=ease(t);
       sliceMesh.position.z = homePos.z + e * edist;
-      sliceMesh.position.y = homePos.y + e * 0.5;
+      sliceMesh.position.y = THREE.MathUtils.lerp(homePos.y, 0, e);
       if (t>=1) { phase=PH.FLIP; phaseTime=0; }
     }
     else if (phase === PH.FLIP) {
@@ -455,7 +455,7 @@ function animate() {
     }
     else if (phase === PH.SHOW) {
       sliceMesh.rotation.y += dt * 0.8;
-      sliceMesh.position.y = homePos.y + 0.5 + Math.sin(phaseTime*1.2)*0.06;
+      sliceMesh.position.y = 0 + Math.sin(phaseTime*1.2)*0.06;
       if (phaseTime>=sdur) { phase=PH.UNFLIP; phaseTime=0; savedRotY=sliceMesh.rotation.y; }
     }
     else if (phase === PH.UNFLIP) {
@@ -468,7 +468,7 @@ function animate() {
     else if (phase === PH.RETURN) {
       const t=Math.min(phaseTime*espd,1), e=ease(t);
       sliceMesh.position.z = THREE.MathUtils.lerp(homePos.z+edist, homePos.z, e);
-      sliceMesh.position.y = THREE.MathUtils.lerp(homePos.y+0.5, homePos.y, e);
+      sliceMesh.position.y = THREE.MathUtils.lerp(0, homePos.y, e);
       if (t>=1) {
         phase=PH.IDLE; phaseTime=0;
         sliceMesh.visible=false;
