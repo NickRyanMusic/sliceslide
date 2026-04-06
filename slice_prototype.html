@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slice Emerge Prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #32394A; font-family: 'IBM Plex Mono', monospace; overflow: hidden; position: fixed; width: 100%; height: 100%; }
+  #bg { position: fixed; inset: 0; z-index: 0; }
+  #three-canvas { position: fixed; inset: 0; z-index: 1; }
+  #controls {
+    position: fixed; top: 14px; right: 14px; z-index: 10;
+    color: #D4BFAB; font-size: 10px; background: rgba(50,57,74,0.92);
+    padding: 12px; border-radius: 6px; border: 1px solid rgba(228,74,56,0.3);
+    max-width: 170px;
+  }
+  #controls label { display: block; margin: 5px 0 1px; color: #E44A38; font-size: 9px; }
+  #controls input[type=range] { width: 100%; }
+  #controls button {
+    margin-top: 8px; background: none; border: 1px solid #E44A38; color: #E44A38;
+    padding: 5px 14px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 10px; width: 100%;
+  }
+  #phase { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10;
+    color: #D4BFAB; font-size: 11px; background: rgba(50,57,74,0.8); padding: 8px 18px; border-radius: 5px; }
+  #phase span { color: #E44A38; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<canvas id="three-canvas"></canvas>
+
+<div id="controls">
+  <strong style="color:#E3E1DF;font-size:11px">Slice Animation</strong>
+  <label>Emerge Speed</label>
+  <input type="range" id="emergeSpd" min="0.3" max="3" step="0.1" value="1.0">
+  <label>Flip Speed</label>
+  <input type="range" id="flipSpd" min="0.3" max="3" step="0.1" value="0.8">
+  <label>Show Duration (s)</label>
+  <input type="range" id="showDur" min="2" max="10" step="0.5" value="5">
+  <label>Emerge Distance</label>
+  <input type="range" id="emergeDist" min="0.5" max="4" step="0.1" value="2.0">
+  <label>Flip Angle</label>
+  <input type="range" id="flipAngle" min="0" max="90" step="5" value="70">
+  <button id="replay">REPLAY</button>
+</div>
+
+<div id="phase">Phase: <span id="plabel">LOADING</span></div>
+
+<script type="module">
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+
+// ============================================================
+// 2D SCULPTURE (canvas)
+// ============================================================
+const bgCanvas = document.getElementById('bg');
+const ctx = bgCanvas.getContext('2d');
+const NUM_LAYERS = 82;
+const TARGET_LAYER = 38;
+
+let sRect = { x:0, y:0, w:0, h:0 };
+let layerH = 0, targetScreenY = 0;
+
+function resizeBg() {
+  bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+  let sw = bgCanvas.width * 0.45, sh = sw * 1.5;
+  if (sh > bgCanvas.height * 0.7) { sh = bgCanvas.height * 0.7; sw = sh / 1.5; }
+  sRect = { x: (bgCanvas.width-sw)/2, y: (bgCanvas.height-sh)/2 - bgCanvas.height*0.03, w: sw, h: sh };
+  layerH = sh / NUM_LAYERS;
+  targetScreenY = sRect.y + TARGET_LAYER * layerH;
+}
+
+function drawSculpture(hideTarget) {
+  ctx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  ctx.strokeStyle = 'rgba(228,74,56,0.35)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(sRect.x, sRect.y, sRect.w, sRect.h);
+  ctx.fillStyle = 'rgba(228,74,56,0.04)';
+  ctx.fillRect(sRect.x, sRect.y, sRect.w, sRect.h);
+
+  for (let i = 0; i < NUM_LAYERS; i++) {
+    let ly = sRect.y + i * layerH + layerH/2;
+    if (i === TARGET_LAYER && !hideTarget) {
+      for (let g=0;g<8;g++) { ctx.fillStyle=`rgba(228,74,56,${0.06*(1-g/8)})`; ctx.fillRect(sRect.x-g*2,ly-layerH*0.5-g,sRect.w+g*4,layerH+g*2); }
+      ctx.fillStyle='rgba(228,74,56,0.8)'; ctx.fillRect(sRect.x,ly-layerH/2,sRect.w,layerH);
+      ctx.strokeStyle='rgba(227,225,223,0.8)'; ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(sRect.x,ly-layerH/2);ctx.lineTo(sRect.x+sRect.w,ly-layerH/2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(sRect.x,ly+layerH/2);ctx.lineTo(sRect.x+sRect.w,ly+layerH/2);ctx.stroke();
+    } else if (i === TARGET_LAYER && hideTarget) {
+      ctx.setLineDash([3,4]); ctx.strokeStyle='rgba(228,74,56,0.25)'; ctx.lineWidth=1;
+      ctx.strokeRect(sRect.x+2,ly-layerH/2,sRect.w-4,layerH); ctx.setLineDash([]);
+    } else {
+      let dist=Math.abs(i-TARGET_LAYER), near=Math.max(0,1-dist/10);
+      if (near>0.05||i%2===0) {
+        ctx.strokeStyle=`rgba(228,74,56,${near>0.05?0.12+near*0.5:0.12})`;
+        ctx.lineWidth=0.4+near*0.6;
+        ctx.beginPath();ctx.moveTo(sRect.x,ly);ctx.lineTo(sRect.x+sRect.w,ly);ctx.stroke();
+      }
+    }
+  }
+}
+
+resizeBg(); drawSculpture(false);
+
+// ============================================================
+// THREE.JS
+// ============================================================
+const threeCanvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+const frustum = 5;
+const asp = window.innerWidth / window.innerHeight;
+const camera = new THREE.OrthographicCamera(-frustum*asp, frustum*asp, frustum, -frustum, 0.1, 100);
+camera.position.set(0, 0, 10); camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xaabbcc, 0.6));
+const d1 = new THREE.DirectionalLight(0xffeedd, 0.9); d1.position.set(3,4,5); scene.add(d1);
+const d2 = new THREE.DirectionalLight(0xE44A38, 0.25); d2.position.set(-2,-1,3); scene.add(d2);
+const d3 = new THREE.DirectionalLight(0x8899bb, 0.3); d3.position.set(0,-3,2); scene.add(d3);
+
+const sliceMat = new THREE.MeshStandardMaterial({ color:0xE44A38, metalness:0.55, roughness:0.3, emissive:0xE44A38, emissiveIntensity:0.08 });
+
+// Parse OBJ
+async function loadOBJ(url) {
+  const text = await (await fetch(url)).text();
+  const verts=[], faces=[];
+  for (const line of text.split('\n')) {
+    const p = line.trim().split(/\s+/);
+    if(p[0]==='v') verts.push(+p[1],+p[2],+p[3]);
+    else if(p[0]==='f'){const idxs=p.slice(1).map(x=>parseInt(x.split('/')[0])-1);for(let i=1;i<idxs.length-1;i++)faces.push(idxs[0],idxs[i],idxs[i+1]);}
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts),3));
+  geo.setIndex(faces); geo.computeVertexNormals(); geo.computeBoundingBox();
+  const bb=geo.boundingBox;
+  geo.translate(-(bb.max.x+bb.min.x)/2, -(bb.max.y+bb.min.y)/2, -(bb.max.z+bb.min.z)/2);
+  const maxD=Math.max(bb.max.x-bb.min.x, bb.max.y-bb.min.y, bb.max.z-bb.min.z);
+  geo.scale(1/maxD, 1/maxD, 1/maxD);
+  return geo;
+}
+
+// Screen coords → world coords
+function s2w(sx, sy) {
+  return new THREE.Vector3(
+    ((sx/window.innerWidth)*2-1) * frustum * asp,
+    (-(sy/window.innerHeight)*2+1) * frustum,
+    0
+  );
+}
+
+let sliceMesh = null;
+let homePos = new THREE.Vector3();
+
+function updateHome() {
+  homePos = s2w(sRect.x + sRect.w/2, targetScreenY + layerH/2);
+}
+
+loadOBJ('slice.obj').then(geo => {
+  // Scale OBJ to match sculpture width on screen
+  const worldW = (sRect.w / window.innerWidth) * 2 * frustum * asp;
+  geo.scale(worldW, worldW, worldW);
+
+  sliceMesh = new THREE.Mesh(geo, sliceMat);
+  sliceMesh.rotation.x = Math.PI/2; // lay flat
+  updateHome();
+  sliceMesh.position.copy(homePos);
+  sliceMesh.visible = false;
+  scene.add(sliceMesh);
+  document.getElementById('plabel').textContent = 'READY — press REPLAY';
+});
+
+// ============================================================
+// ANIMATION PHASES
+// ============================================================
+const PH = { IDLE:0, EMERGE:1, FLIP:2, SHOW:3, UNFLIP:4, RETURN:5 };
+let phase = PH.IDLE, phaseTime = 0, savedRotY = 0;
+const clock = new THREE.Clock();
+const plabel = document.getElementById('plabel');
+
+function val(id) { return parseFloat(document.getElementById(id).value); }
+function ease(t) { return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+
+document.getElementById('replay').addEventListener('click', () => {
+  if (!sliceMesh) return;
+  updateHome();
+  sliceMesh.position.copy(homePos);
+  sliceMesh.rotation.set(Math.PI/2, 0, 0);
+  sliceMesh.visible = true;
+  drawSculpture(true);
+  phase = PH.EMERGE; phaseTime = 0;
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  if (sliceMesh && phase !== PH.IDLE) {
+    phaseTime += dt;
+    const espd=val('emergeSpd'), fspd=val('flipSpd'), sdur=val('showDur'), edist=val('emergeDist'), fang=val('flipAngle')*Math.PI/180;
+
+    if (phase === PH.EMERGE) {
+      plabel.textContent = 'EMERGING';
+      const t=Math.min(phaseTime*espd,1), e=ease(t);
+      sliceMesh.position.z = homePos.z + e * edist;
+      sliceMesh.position.y = homePos.y + e * 0.3;
+      if (t>=1) { phase=PH.FLIP; phaseTime=0; }
+    }
+
+    else if (phase === PH.FLIP) {
+      plabel.textContent = 'FLIPPING';
+      const t=Math.min(phaseTime*fspd,1), e=ease(t);
+      sliceMesh.rotation.x = Math.PI/2 - e * fang;
+      if (t>=1) { phase=PH.SHOW; phaseTime=0; }
+    }
+
+    else if (phase === PH.SHOW) {
+      plabel.textContent = 'SHOWING';
+      sliceMesh.rotation.y += dt * 0.5;
+      sliceMesh.position.y = homePos.y + 0.3 + Math.sin(phaseTime*1.2)*0.06;
+      if (phaseTime>=sdur) { phase=PH.UNFLIP; phaseTime=0; savedRotY=sliceMesh.rotation.y; }
+    }
+
+    else if (phase === PH.UNFLIP) {
+      plabel.textContent = 'UNFLIPPING';
+      const t=Math.min(phaseTime*fspd,1), e=ease(t);
+      sliceMesh.rotation.x = THREE.MathUtils.lerp(Math.PI/2-fang, Math.PI/2, e);
+      // Ease Y rotation towards nearest multiple of 2PI (back to front-facing)
+      const targetRotY = Math.round(savedRotY / (Math.PI*2)) * Math.PI * 2;
+      sliceMesh.rotation.y = THREE.MathUtils.lerp(savedRotY, targetRotY, e);
+      if (t>=1) { phase=PH.RETURN; phaseTime=0; sliceMesh.rotation.set(Math.PI/2,0,0); }
+    }
+
+    else if (phase === PH.RETURN) {
+      plabel.textContent = 'RETURNING';
+      const t=Math.min(phaseTime*espd,1), e=ease(t);
+      sliceMesh.position.z = THREE.MathUtils.lerp(homePos.z+edist, homePos.z, e);
+      sliceMesh.position.y = THREE.MathUtils.lerp(homePos.y+0.3, homePos.y, e);
+      if (t>=1) {
+        phase=PH.IDLE; phaseTime=0;
+        sliceMesh.visible=false;
+        sliceMesh.rotation.set(Math.PI/2,0,0);
+        drawSculpture(false);
+        plabel.textContent='DONE — press REPLAY';
+      }
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  resizeBg(); drawSculpture(phase!==PH.IDLE);
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  const a=window.innerWidth/window.innerHeight;
+  camera.left=-frustum*a;camera.right=frustum*a;camera.top=frustum;camera.bottom=-frustum;
+  camera.updateProjectionMatrix();
+  if(sliceMesh) updateHome();
+});
+</script>
+</body>
+</html>
