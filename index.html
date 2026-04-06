@@ -40,7 +40,7 @@
   <label>Show Duration (s)</label>
   <input type="range" id="showDur" min="2" max="10" step="0.5" value="5">
   <label>Emerge Distance</label>
-  <input type="range" id="emergeDist" min="0.5" max="4" step="0.1" value="2.0">
+  <input type="range" id="emergeDist" min="0.5" max="3.5" step="0.1" value="2.5">
   <label>Flip Angle</label>
   <input type="range" id="flipAngle" min="0" max="90" step="5" value="70">
   <button id="replay">REPLAY</button>
@@ -111,8 +111,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 const scene = new THREE.Scene();
-const camZ = 10;
-const fov = 40;
+const camZ = 5;
+const fov = 55;
 const camera = new THREE.PerspectiveCamera(fov, window.innerWidth/window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, camZ); camera.lookAt(0, 0, 0);
 
@@ -216,7 +216,7 @@ function animate() {
       plabel.textContent = 'EMERGING';
       const t=Math.min(phaseTime*espd,1), e=ease(t);
       sliceMesh.position.z = homePos.z + e * edist;
-      sliceMesh.position.y = homePos.y + e * 0.3;
+      sliceMesh.position.y = homePos.y + e * 0.5;
       if (t>=1) { phase=PH.FLIP; phaseTime=0; }
     }
 
@@ -229,8 +229,8 @@ function animate() {
 
     else if (phase === PH.SHOW) {
       plabel.textContent = 'SHOWING';
-      sliceMesh.rotation.y += dt * 0.5;
-      sliceMesh.position.y = homePos.y + 0.3 + Math.sin(phaseTime*1.2)*0.06;
+      sliceMesh.rotation.y += dt * 0.8;
+      sliceMesh.position.y = homePos.y + 0.5 + Math.sin(phaseTime*1.2)*0.06;
       if (phaseTime>=sdur) { phase=PH.UNFLIP; phaseTime=0; savedRotY=sliceMesh.rotation.y; }
     }
 
@@ -248,7 +248,7 @@ function animate() {
       plabel.textContent = 'RETURNING';
       const t=Math.min(phaseTime*espd,1), e=ease(t);
       sliceMesh.position.z = THREE.MathUtils.lerp(homePos.z+edist, homePos.z, e);
-      sliceMesh.position.y = THREE.MathUtils.lerp(homePos.y+0.3, homePos.y, e);
+      sliceMesh.position.y = THREE.MathUtils.lerp(homePos.y+0.5, homePos.y, e);
       if (t>=1) {
         phase=PH.IDLE; phaseTime=0;
         sliceMesh.visible=false;
